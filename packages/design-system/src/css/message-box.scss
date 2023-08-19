@@ -1,8 +1,8 @@
-@use "mixins/mixins";
-@use "mixins/button";
-@use "./common/var";
-@use "common/popup";
-@use "input";
+@use 'mixins/mixins';
+@use 'mixins/button';
+@use './common/var';
+@use 'common/popup';
+@use 'input';
 
 @include mixins.b(message-box) {
 	display: inline-block;
@@ -150,13 +150,23 @@
 			margin-left: 10px;
 		}
 
-		//& .btn--confirm {
-		//	@include button.button-just-primary();
-		//	@include button.button-medium();
-		//}
+		& .btn--confirm {
+			@include button.button-just-primary();
+			@include button.button-small();
+		}
 		//
-		//& .btn--cancel {
-		//}
+		& .btn--cancel {
+			@include button.button-small();
+			@include button.button-outline;
+
+			--button-active-background-color: var(--color-primary-tint-2);
+			--button-active-color: var(--color-primary);
+			--button-active-border-color: var(--color-primary);
+			--button-hover-background-color: var(--color-primary-tint-3);
+			--button-hover-color: var(--color-primary);
+			--button-hover-border-color: var(--color-primary);
+			--button-focus-outline-color: var(--color-primary-tint-1);
+		}
 	}
 
 	@include mixins.e(btns-reverse) {

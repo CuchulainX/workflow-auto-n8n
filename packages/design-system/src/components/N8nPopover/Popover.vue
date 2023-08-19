@@ -1,7 +1,25 @@
 <script lang="ts">
-import ElPopover from 'element-ui/lib/popover';
+import { ElPopover } from 'element-plus';
+import { defineComponent } from 'vue';
 
-ElPopover.name = 'n8n-popover'; // eslint-disable-line @typescript-eslint/no-unsafe-member-access
-
-export default ElPopover;
+export default defineComponent({
+	name: 'N8nPopover',
+	props: {
+		...ElPopover.props,
+	},
+	components: {
+		ElPopover,
+	},
+});
 </script>
+
+<template>
+	<span>
+		<el-popover v-bind="{ ...$props, ...$attrs }">
+			<template #reference>
+				<slot name="reference" />
+			</template>
+			<slot />
+		</el-popover>
+	</span>
+</template>

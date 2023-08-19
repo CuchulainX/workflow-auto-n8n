@@ -1,25 +1,21 @@
-/* eslint-disable no-param-reassign */
 /* eslint-disable @typescript-eslint/no-use-before-define */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
+
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import fs from 'fs';
 import path from 'path';
 import { createHash, randomBytes } from 'crypto';
-// eslint-disable-next-line import/no-cycle
+import { promisify } from 'util';
+import { deepCopy } from 'n8n-workflow';
 import {
 	ENCRYPTION_KEY_ENV_OVERWRITE,
 	EXTENSIONS_SUBDIRECTORY,
 	DOWNLOADED_NODES_SUBDIRECTORY,
-	IUserSettings,
 	RESPONSE_ERROR_MESSAGES,
 	USER_FOLDER_ENV_OVERWRITE,
 	USER_SETTINGS_FILE_NAME,
 	USER_SETTINGS_SUBFOLDER,
-} from '.';
-import { deepCopy } from 'n8n-workflow';
-
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { promisify } = require('util');
+} from './Constants';
+import type { IUserSettings } from './Interfaces';
 
 const fsAccess = promisify(fs.access);
 const fsReadFile = promisify(fs.readFile);
@@ -61,7 +57,6 @@ export async function prepareUserSettings(): Promise<IUserSettings> {
 
 	userSettings.instanceId = await generateInstanceId(userSettings.encryptionKey);
 
-	// eslint-disable-next-line no-console
 	console.log(`UserSettings were generated and saved to: ${settingsPath}`);
 
 	return writeUserSettings(userSettings, settingsPath);
@@ -80,7 +75,7 @@ export async function getEncryptionKey(): Promise<string> {
 
 	const userSettings = await getUserSettings();
 
-	if (userSettings === undefined || userSettings.encryptionKey === undefined) {
+	if (userSettings?.encryptionKey === undefined) {
 		throw new Error(RESPONSE_ERROR_MESSAGES.NO_ENCRYPTION_KEY);
 	}
 
@@ -205,7 +200,6 @@ export async function getUserSettings(
 	const settingsFile = await fsReadFile(settingsPath, 'utf8');
 
 	try {
-		// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
 		settingsCache = JSON.parse(settingsFile);
 	} catch (error) {
 		throw new Error(
@@ -232,14 +226,7 @@ export function getUserSettingsPath(): string {
  *
  */
 export function getUserN8nFolderPath(): string {
-	let userFolder;
-	if (process.env[USER_FOLDER_ENV_OVERWRITE] !== undefined) {
-		userFolder = process.env[USER_FOLDER_ENV_OVERWRITE];
-	} else {
-		userFolder = getUserHome();
-	}
-
-	return path.join(userFolder, USER_SETTINGS_SUBFOLDER);
+	return path.join(getUserHome(), USER_SETTINGS_SUBFOLDER);
 }
 
 /**
@@ -256,7 +243,7 @@ export function getUserN8nFolderCustomExtensionPath(): string {
  * have been downloaded
  *
  */
-export function getUserN8nFolderDowloadedNodesPath(): string {
+export function getUserN8nFolderDownloadedNodesPath(): string {
 	return path.join(getUserN8nFolderPath(), DOWNLOADED_NODES_SUBDIRECTORY);
 }
 
@@ -267,16 +254,19 @@ export function getUserN8nFolderDowloadedNodesPath(): string {
  *
  */
 export function getUserHome(): string {
-	let variableName = 'HOME';
-	if (process.platform === 'win32') {
-		variableName = 'USERPROFILE';
-	}
+	if (process.env[USER_FOLDER_ENV_OVERWRITE] !== undefined) {
+		return process.env[USER_FOLDER_ENV_OVERWRITE];
+	} else {
+		let variableName = 'HOME';
+		if (process.platform === 'win32') {
+			variableName = 'USERPROFILE';
+		}
 
-	if (process.env[variableName] === undefined) {
-		// If for some reason the variable does not exist
-		// fall back to current folder
-		return process.cwd();
+		if (process.env[variableName] === undefined) {
+			// If for some reason the variable does not exist
+			// fall back to current folder
+			return process.cwd();
+		}
+		return process.env[variableName] as string;
 	}
-
-	return process.env[variableName] as string;
 }

@@ -1,4 +1,4 @@
-import {
+import type {
 	IAuthenticateGeneric,
 	ICredentialTestRequest,
 	ICredentialType,
@@ -7,8 +7,11 @@ import {
 
 export class RundeckApi implements ICredentialType {
 	name = 'rundeckApi';
+
 	displayName = 'Rundeck API';
+
 	documentationUrl = 'rundeck';
+
 	properties: INodeProperties[] = [
 		{
 			displayName: 'Url',
@@ -21,10 +24,11 @@ export class RundeckApi implements ICredentialType {
 			displayName: 'Token',
 			name: 'token',
 			type: 'string',
+			typeOptions: { password: true },
 			default: '',
 		},
 	];
-	
+
 	authenticate: IAuthenticateGeneric = {
 		type: 'generic',
 		properties: {
@@ -41,5 +45,5 @@ export class RundeckApi implements ICredentialType {
 			url: '/api/14/system/info',
 			method: 'GET',
 		},
-	};	
+	};
 }

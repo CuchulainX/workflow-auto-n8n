@@ -1,24 +1,39 @@
 <template>
-	<div :class="['accordion', $style.container]" >
-		<div :class="{[$style.header]: true, [$style.expanded]: expanded }" @click="toggle">
-			<n8n-icon v-if="headerIcon" :icon="headerIcon.icon" :color="headerIcon.color" size="small" class="mr-2xs"/>
-			<n8n-text :class="$style.headerText" color="text-base" size="small" align="left" bold>{{ title }}</n8n-text>
-			<n8n-icon :icon="expanded? 'chevron-up' : 'chevron-down'" bold />
+	<div :class="['accordion', $style.container]">
+		<div :class="{ [$style.header]: true, [$style.expanded]: expanded }" @click="toggle">
+			<n8n-icon
+				v-if="headerIcon"
+				:icon="headerIcon.icon"
+				:color="headerIcon.color"
+				size="small"
+				class="mr-2xs"
+			/>
+			<n8n-text :class="$style.headerText" color="text-base" size="small" align="left" bold>{{
+				title
+			}}</n8n-text>
+			<n8n-icon :icon="expanded ? 'chevron-up' : 'chevron-down'" bold />
 		</div>
-		<div v-if="expanded" :class="{[$style.description]: true, [$style.collapsed]: !expanded}" @click="onClick">
+		<div
+			v-if="expanded"
+			:class="{ [$style.description]: true, [$style.collapsed]: !expanded }"
+			@click="onClick"
+		>
 			<!-- Info accordion can display list of items with icons or just a HTML description -->
 			<div v-if="items.length > 0" :class="$style.accordionItems">
 				<div v-for="item in items" :key="item.id" :class="$style.accordionItem">
 					<n8n-tooltip :disabled="!item.tooltip">
-						<div slot="content" v-html="item.tooltip" @click="onTooltipClick(item.id, $event)"></div>
-						<n8n-icon :icon="item.icon" :color="item.iconColor" size="small" class="mr-2xs"/>
+						<template #content>
+							<div v-html="item.tooltip" @click="onTooltipClick(item.id, $event)"></div>
+						</template>
+						<n8n-icon :icon="item.icon" :color="item.iconColor" size="small" class="mr-2xs" />
 					</n8n-tooltip>
 					<n8n-text size="small" color="text-base">{{ item.label }}</n8n-text>
-			</div>
+				</div>
 			</div>
 			<n8n-text color="text-base" size="small" align="left">
 				<span v-html="description"></span>
 			</n8n-text>
+			<slot name="customContent"></slot>
 		</div>
 	</div>
 </template>
@@ -26,15 +41,20 @@
 <script lang="ts">
 import N8nText from '../N8nText';
 import N8nIcon from '../N8nIcon';
-import Vue, { PropType } from 'vue';
+import type { PropType } from 'vue';
+import { defineComponent } from 'vue';
+import type { EventBus } from '../../utils';
+import { createEventBus } from '../../utils';
 
-interface IAccordionItem {
+export interface IAccordionItem {
 	id: string;
 	label: string;
 	icon: string;
+	iconColor?: string;
+	tooltip?: string;
 }
 
-export default Vue.extend({
+export default defineComponent({
 	name: 'n8n-info-accordion',
 	components: {
 		N8nText,
@@ -49,21 +69,23 @@ export default Vue.extend({
 		},
 		items: {
 			type: Array as PropType<IAccordionItem[]>,
-			default() {
-				return [];
-			},
+			default: () => [],
 		},
 		initiallyExpanded: {
 			type: Boolean,
 			default: false,
 		},
 		headerIcon: {
-			type: Object as () => { icon: string, color: string },
+			type: Object as PropType<{ icon: string; color: string }>,
 			required: false,
+		},
+		eventBus: {
+			type: Object as PropType<EventBus>,
+			default: () => createEventBus(),
 		},
 	},
 	mounted() {
-		this.$on('expand', () => {
+		this.eventBus.on('expand', () => {
 			this.expanded = true;
 		});
 		this.expanded = this.initiallyExpanded;
@@ -77,8 +99,8 @@ export default Vue.extend({
 		toggle() {
 			this.expanded = !this.expanded;
 		},
-		onClick(e) {
-			this.$emit('click', e);
+		onClick(e: MouseEvent) {
+			this.$emit('click:body', e);
 		},
 		onTooltipClick(item: string, event: MouseEvent) {
 			this.$emit('tooltipClick', item, event);
@@ -127,5 +149,4 @@ export default Vue.extend({
 		font-weight: var(--font-weight-bold);
 	}
 }
-
 </style>

@@ -2,29 +2,56 @@
 	<n8n-checkbox
 		v-if="type === 'checkbox'"
 		v-bind="$props"
-		@input="onInput"
+		@update:modelValue="onUpdateModelValue"
 		@focus="onFocus"
 		ref="inputRef"
 	/>
-	<n8n-input-label v-else :inputName="name" :label="label" :tooltipText="tooltipText" :required="required && showRequiredAsterisk">
+	<n8n-input-label
+		v-else-if="type === 'toggle'"
+		:inputName="name"
+		:label="label"
+		:tooltipText="tooltipText"
+		:required="required && showRequiredAsterisk"
+	>
+		<template #content>
+			{{ tooltipText }}
+		</template>
+		<el-switch
+			:modelValue="modelValue"
+			:active-color="activeColor"
+			:inactive-color="inactiveColor"
+			@update:modelValue="onUpdateModelValue"
+		></el-switch>
+	</n8n-input-label>
+	<n8n-input-label
+		v-else
+		:inputName="name"
+		:label="label"
+		:tooltipText="tooltipText"
+		:required="required && showRequiredAsterisk"
+	>
 		<div :class="showErrors ? $style.errorInput : ''" @keydown.stop @keydown.enter="onEnter">
 			<slot v-if="hasDefaultSlot" />
 			<n8n-select
+				:class="{ [$style.multiSelectSmallTags]: tagSize === 'small' }"
 				v-else-if="type === 'select' || type === 'multi-select'"
-				:value="value"
+				:modelValue="modelValue"
 				:placeholder="placeholder"
 				:multiple="type === 'multi-select'"
-				@change="onInput"
+				:disabled="disabled"
+				@update:modelValue="onUpdateModelValue"
 				@focus="onFocus"
 				@blur="onBlur"
 				:name="name"
+				:teleported="teleported"
 				ref="inputRef"
 			>
 				<n8n-option
-					v-for="option in (options || [])"
+					v-for="option in options || []"
 					:key="option.value"
 					:value="option.value"
 					:label="option.label"
+					size="small"
 				/>
 			</n8n-select>
 			<n8n-input
@@ -32,10 +59,11 @@
 				:name="name"
 				:type="type"
 				:placeholder="placeholder"
-				:value="value"
+				:modelValue="modelValue"
 				:maxlength="maxlength"
 				:autocomplete="autocomplete"
-				@input="onInput"
+				:disabled="disabled"
+				@update:modelValue="onUpdateModelValue"
 				@blur="onBlur"
 				@focus="onFocus"
 				ref="inputRef"
@@ -67,14 +95,15 @@ import N8nSelect from '../N8nSelect';
 import N8nOption from '../N8nOption';
 import N8nInputLabel from '../N8nInputLabel';
 import N8nCheckbox from '../N8nCheckbox';
+import { ElSwitch } from 'element-plus';
 
 import { getValidationError, VALIDATORS } from './validators';
-import { Rule, RuleGroup, IValidator } from "../../types";
+import type { Rule, RuleGroup, IValidator, Validatable, FormState } from '../../types';
 
 import { t } from '../../locale';
 
 export interface Props {
-  value: any;
+	modelValue: Validatable;
 	label: string;
 	infoText?: string;
 	required?: boolean;
@@ -87,13 +116,20 @@ export interface Props {
 	documentationUrl?: string;
 	documentationText?: string;
 	validationRules?: Array<Rule | RuleGroup>;
-	validators?: {[key: string]: IValidator | RuleGroup};
+	validators?: { [key: string]: IValidator | RuleGroup };
 	maxlength?: number;
-	options?: Array<{value: string | number, label: string}>;
+	options?: Array<{ value: string | number; label: string }>;
 	autocomplete?: string;
 	name?: string;
 	focusInitially?: boolean;
 	labelSize?: 'small' | 'medium';
+	disabled?: boolean;
+	activeLabel?: string;
+	activeColor?: string;
+	inactiveLabel?: string;
+	inactiveColor?: string;
+	teleported?: boolean;
+	tagSize?: 'small' | 'medium';
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -102,14 +138,16 @@ const props = withDefaults(defineProps<Props>(), {
 	type: 'text',
 	showRequiredAsterisk: true,
 	validateOnBlur: true,
+	teleported: true,
+	tagSize: 'small',
 });
 
 const emit = defineEmits<{
-	(event: 'validate', shouldValidate: boolean): void,
-	(event: 'input', value: any): void,
-	(event: 'focus'): void,
-	(event: 'blur'): void,
-	(event: 'enter'): void,
+	(event: 'validate', shouldValidate: boolean): void;
+	(event: 'update:modelValue', value: unknown): void;
+	(event: 'focus'): void;
+	(event: 'blur'): void;
+	(event: 'enter'): void;
 }>();
 
 const state = reactive({
@@ -121,7 +159,7 @@ const slots = useSlots();
 
 const inputRef = ref<HTMLTextAreaElement | null>(null);
 
-function getInputValidationError(): ReturnType<IValidator['validate']>  {
+function getInputValidationError(): ReturnType<IValidator['validate']> {
 	const rules = props.validationRules || [];
 	const validators = {
 		...VALIDATORS,
@@ -129,7 +167,11 @@ function getInputValidationError(): ReturnType<IValidator['validate']>  {
 	} as { [key: string]: IValidator | RuleGroup };
 
 	if (props.required) {
-		const error = getValidationError(props.value, validators, validators.REQUIRED as IValidator);
+		const error = getValidationError(
+			props.modelValue,
+			validators,
+			validators.REQUIRED as IValidator,
+		);
 		if (error) return error;
 	}
 
@@ -138,7 +180,7 @@ function getInputValidationError(): ReturnType<IValidator['validate']>  {
 			const rule = rules[i] as Rule;
 			if (validators[rule.name]) {
 				const error = getValidationError(
-					props.value,
+					props.modelValue,
 					validators,
 					validators[rule.name] as IValidator,
 					rule.config,
@@ -149,11 +191,7 @@ function getInputValidationError(): ReturnType<IValidator['validate']>  {
 
 		if (rules[i].hasOwnProperty('rules')) {
 			const rule = rules[i] as RuleGroup;
-			const error = getValidationError(
-				props.value,
-				validators,
-				rule,
-			);
+			const error = getValidationError(props.modelValue, validators, rule);
 			if (error) return error;
 		}
 	}
@@ -167,9 +205,9 @@ function onBlur() {
 	emit('blur');
 }
 
-function onInput(value: any) {
+function onUpdateModelValue(value: FormState) {
 	state.isTyping = true;
-	emit('input', value);
+	emit('update:modelValue', value);
 }
 
 function onFocus() {
@@ -185,21 +223,35 @@ function onEnter(event: Event) {
 const validationError = computed<string | null>(() => {
 	const error = getInputValidationError();
 
-	return error ? t(error.messageKey, error.options) : null;
+	if (error) {
+		if (error.messageKey) {
+			return t(error.messageKey, error.options);
+		} else {
+			return error.message;
+		}
+	}
+
+	return null;
 });
 
 const hasDefaultSlot = computed(() => !!slots.default);
 
-const showErrors = computed(() => (
-	!!validationError.value &&
-		((props.validateOnBlur && state.hasBlurred && !state.isTyping) || props.showValidationWarnings)
-));
+const showErrors = computed(
+	() =>
+		!!validationError.value &&
+		((props.validateOnBlur && state.hasBlurred && !state.isTyping) || props.showValidationWarnings),
+);
 
 onMounted(() => {
+	emit('validate', !validationError.value);
+
 	if (props.focusInitially && inputRef.value) inputRef.value.focus();
 });
 
-watch(() => validationError.value, (error) => emit('validate', !error));
+watch(
+	() => validationError.value,
+	(error) => emit('validate', !error),
+);
 
 defineExpose({ inputRef });
 </script>
@@ -219,5 +271,13 @@ defineExpose({ inputRef });
 
 .errorInput {
 	--input-border-color: var(--color-danger);
+}
+
+.multiSelectSmallTags {
+	:global(.el-tag) {
+		height: 24px;
+		padding: 0 8px;
+		line-height: 22px;
+	}
 }
 </style>

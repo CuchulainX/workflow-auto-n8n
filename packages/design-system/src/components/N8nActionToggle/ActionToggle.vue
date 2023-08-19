@@ -1,60 +1,62 @@
 <template>
-	<span :class="$style.container">
+	<span @click.stop.prevent :class="$style.container" data-test-id="action-toggle">
 		<el-dropdown
 			:placement="placement"
 			:size="size"
 			trigger="click"
-			@click.native.stop
 			@command="onCommand"
 			@visible-change="onVisibleChange"
 		>
-			<span :class="{[$style.button]: true, [$style[theme]]: !!theme}">
-				<component :is="$options.components.N8nIcon"
-					icon="ellipsis-v"
+			<span :class="{ [$style.button]: true, [$style[theme]]: !!theme }">
+				<n8n-icon
+					:icon="iconOrientation === 'horizontal' ? 'ellipsis-h' : 'ellipsis-v'"
 					:size="iconSize"
 				/>
 			</span>
-			<el-dropdown-menu slot="dropdown">
-				<el-dropdown-item
-					v-for="action in actions"
-					:key="action.value"
-					:command="action.value"
-					:disabled="action.disabled"
-				>
-					{{action.label}}
-					<div :class="$style.iconContainer">
-						<component
-							v-if="action.type === 'external-link'"
-							:is="$options.components.N8nIcon"
-							icon="external-link-alt"
-							size="xsmall"
-							color="text-base"
-						/>
-					</div>
-				</el-dropdown-item>
-			</el-dropdown-menu>
+
+			<template #dropdown>
+				<el-dropdown-menu data-test-id="action-toggle-dropdown">
+					<el-dropdown-item
+						v-for="action in actions"
+						:key="action.value"
+						:command="action.value"
+						:disabled="action.disabled"
+						:data-test-id="`action-${action.value}`"
+					>
+						{{ action.label }}
+						<div :class="$style.iconContainer">
+							<n8n-icon
+								v-if="action.type === 'external-link'"
+								icon="external-link-alt"
+								size="xsmall"
+								color="text-base"
+							/>
+						</div>
+					</el-dropdown-item>
+				</el-dropdown-menu>
+			</template>
 		</el-dropdown>
 	</span>
 </template>
 
 <script lang="ts">
-import ElDropdown from 'element-ui/lib/dropdown';
-import ElDropdownMenu from 'element-ui/lib/dropdown-menu';
-import ElDropdownItem from 'element-ui/lib/dropdown-item';
+import type { PropType } from 'vue';
+import { defineComponent } from 'vue';
+import { ElDropdown, ElDropdownMenu, ElDropdownItem } from 'element-plus';
 import N8nIcon from '../N8nIcon';
-import Vue from 'vue';
+import type { UserAction } from '@/types';
 
-export default Vue.extend({
+export default defineComponent({
 	name: 'n8n-action-toggle',
 	components: {
-		ElDropdown, // eslint-disable-line @typescript-eslint/no-unsafe-assignment
-		ElDropdownMenu, // eslint-disable-line @typescript-eslint/no-unsafe-assignment
-		ElDropdownItem, // eslint-disable-line @typescript-eslint/no-unsafe-assignment
+		ElDropdown,
+		ElDropdownMenu,
+		ElDropdownItem,
 		N8nIcon,
 	},
 	props: {
 		actions: {
-			type: Array,
+			type: Array as PropType<UserAction[]>,
 			default: () => [],
 		},
 		placement: {
@@ -66,8 +68,7 @@ export default Vue.extend({
 		size: {
 			type: String,
 			default: 'medium',
-			validator: (value: string): boolean =>
-				['mini', 'small', 'medium'].includes(value),
+			validator: (value: string): boolean => ['mini', 'small', 'medium'].includes(value),
 		},
 		iconSize: {
 			type: String,
@@ -75,8 +76,12 @@ export default Vue.extend({
 		theme: {
 			type: String,
 			default: 'default',
-			validator: (value: string): boolean =>
-				['default', 'dark'].includes(value),
+			validator: (value: string): boolean => ['default', 'dark'].includes(value),
+		},
+		iconOrientation: {
+			type: String,
+			default: 'vertical',
+			validator: (value: string): boolean => ['horizontal', 'vertical'].includes(value),
 		},
 	},
 	methods: {

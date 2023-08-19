@@ -1,27 +1,24 @@
-import { OptionsWithUri } from 'request';
+import type { OptionsWithUri } from 'request';
 
-import {
-	BINARY_ENCODING,
+import type {
+	IDataObject,
 	IExecuteFunctions,
-	IExecuteSingleFunctions,
 	IHookFunctions,
 	ILoadOptionsFunctions,
-} from 'n8n-core';
-
-import { IDataObject, IOAuth2Options, NodeApiError } from 'n8n-workflow';
+	IOAuth2Options,
+} from 'n8n-workflow';
 
 import { snakeCase } from 'change-case';
 
 export async function shopifyApiRequest(
-	this: IHookFunctions | IExecuteFunctions | IExecuteSingleFunctions | ILoadOptionsFunctions,
+	this: IHookFunctions | IExecuteFunctions | ILoadOptionsFunctions,
 	method: string,
 	resource: string,
-	// tslint:disable-next-line:no-any
+
 	body: any = {},
 	query: IDataObject = {},
 	uri?: string,
 	option: IDataObject = {},
-	// tslint:disable-next-line:no-any
 ): Promise<any> {
 	const authenticationMethod = this.getNodeParameter('authentication', 0, 'oAuth2') as string;
 
@@ -60,20 +57,16 @@ export async function shopifyApiRequest(
 	if (Object.keys(option).length !== 0) {
 		Object.assign(options, option);
 	}
-	if (Object.keys(body).length === 0) {
+	if (Object.keys(body as IDataObject).length === 0) {
 		delete options.body;
 	}
 	if (Object.keys(query).length === 0) {
 		delete options.qs;
 	}
 
-	try {
-		return await this.helpers.requestWithAuthentication.call(this, credentialType, options, {
-			oauth2: oAuth2Options,
-		});
-	} catch (error) {
-		throw new NodeApiError(this.getNode(), error);
-	}
+	return this.helpers.requestWithAuthentication.call(this, credentialType, options, {
+		oauth2: oAuth2Options,
+	});
 }
 
 export async function shopifyApiRequestAllItems(
@@ -81,10 +74,9 @@ export async function shopifyApiRequestAllItems(
 	propertyName: string,
 	method: string,
 	resource: string,
-	// tslint:disable-next-line:no-any
+
 	body: any = {},
 	query: IDataObject = {},
-	// tslint:disable-next-line:no-any
 ): Promise<any> {
 	const returnData: IDataObject[] = [];
 
@@ -109,13 +101,10 @@ export async function shopifyApiRequestAllItems(
 			resolveWithFullResponse: true,
 		});
 		if (responseData.headers.link) {
-			uri = responseData.headers['link'].split(';')[0].replace('<', '').replace('>', '');
+			uri = responseData.headers.link.split(';')[0].replace('<', '').replace('>', '');
 		}
-		returnData.push.apply(returnData, responseData.body[propertyName]);
-	} while (
-		responseData.headers['link'] !== undefined &&
-		responseData.headers['link'].includes('rel="next"')
-	);
+		returnData.push.apply(returnData, responseData.body[propertyName] as IDataObject[]);
+	} while (responseData.headers.link?.includes('rel="next"'));
 	return returnData;
 }
 

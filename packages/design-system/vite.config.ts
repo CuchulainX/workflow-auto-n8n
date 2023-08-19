@@ -1,22 +1,22 @@
-import vue from '@vitejs/plugin-vue2';
+import vue from '@vitejs/plugin-vue';
 import { resolve } from 'path';
 import { defineConfig, mergeConfig } from 'vite';
 import { defineConfig as defineVitestConfig } from 'vitest/config';
 
+const { coverageReporters } = require('../../jest.config.js');
+
 export default mergeConfig(
 	defineConfig({
-		plugins: [
-			vue(),
-		],
+		plugins: [vue()],
 		resolve: {
 			alias: {
 				'@': resolve(__dirname, 'src'),
-				'vue2-boring-avatars': require.resolve('vue2-boring-avatars'),
+				'n8n-design-system': resolve(__dirname, 'src'),
 			},
 		},
 		build: {
 			lib: {
-				entry: resolve(__dirname, 'src', 'main.js'),
+				entry: resolve(__dirname, 'src', 'main.ts'),
 				name: 'N8nDesignSystem',
 				fileName: (format) => `n8n-design-system.${format}.js`,
 			},
@@ -40,6 +40,16 @@ export default mergeConfig(
 			globals: true,
 			environment: 'jsdom',
 			setupFiles: ['./src/__tests__/setup.ts'],
+			coverage: {
+				provider: 'v8',
+				reporter: coverageReporters,
+				all: true,
+			},
+			css: {
+				modules: {
+					classNameStrategy: 'non-scoped',
+				},
+			},
 		},
 	}),
 );

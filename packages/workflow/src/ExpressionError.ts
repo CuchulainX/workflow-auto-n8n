@@ -1,5 +1,4 @@
-/* eslint-disable import/no-cycle */
-import { IDataObject } from './Interfaces';
+import type { IDataObject } from './Interfaces';
 import { ExecutionBaseError } from './NodeErrors';
 
 /**
@@ -13,7 +12,6 @@ export class ExpressionError extends ExecutionBaseError {
 			causeDetailed?: string;
 			description?: string;
 			descriptionTemplate?: string;
-			failExecution?: boolean;
 			functionality?: 'pairedItem';
 			itemIndex?: number;
 			messageTemplate?: string;
@@ -28,8 +26,6 @@ export class ExpressionError extends ExecutionBaseError {
 		if (options?.description !== undefined) {
 			this.description = options.description;
 		}
-
-		this.context.failExecution = !!options?.failExecution;
 
 		const allowedKeys = [
 			'causeDetailed',
@@ -51,3 +47,5 @@ export class ExpressionError extends ExecutionBaseError {
 		}
 	}
 }
+
+export class ExpressionExtensionError extends ExpressionError {}

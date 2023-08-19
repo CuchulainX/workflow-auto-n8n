@@ -1,6 +1,11 @@
-import Vue from 'vue';
-import { Diagnostic, linter as createLinter } from '@codemirror/lint';
-import * as esprima from 'esprima';
+import { defineComponent } from 'vue';
+import type { Diagnostic } from '@codemirror/lint';
+import { linter as createLinter } from '@codemirror/lint';
+import { jsonParseLinter } from '@codemirror/lang-json';
+import type { EditorView } from '@codemirror/view';
+import * as esprima from 'esprima-next';
+import type { Node } from 'estree';
+import type { CodeNodeEditorLanguage } from 'n8n-workflow';
 
 import {
 	DEFAULT_LINTER_DELAY_IN_MS,
@@ -8,15 +13,18 @@ import {
 	OFFSET_FOR_SCRIPT_WRAPPER,
 } from './constants';
 import { walk } from './utils';
+import type { RangeNode } from './types';
 
-import type { EditorView } from '@codemirror/view';
-import type { Node } from 'estree';
-import type { CodeNodeEditorMixin, RangeNode } from './types';
-
-export const linterExtension = (Vue as CodeNodeEditorMixin).extend({
+export const linterExtension = defineComponent({
 	methods: {
-		linterExtension() {
-			return createLinter(this.lintSource, { delay: DEFAULT_LINTER_DELAY_IN_MS });
+		createLinter(language: CodeNodeEditorLanguage) {
+			switch (language) {
+				case 'javaScript':
+					return createLinter(this.lintSource, { delay: DEFAULT_LINTER_DELAY_IN_MS });
+				case 'json':
+					return createLinter(jsonParseLinter());
+			}
+			return undefined;
 		},
 
 		lintSource(editorView: EditorView): Diagnostic[] {
@@ -31,6 +39,15 @@ export const linterExtension = (Vue as CodeNodeEditorMixin).extend({
 				let line;
 
 				try {
+					const lineAtError = editorView.state.doc.line(syntaxError.lineNumber - 1).text;
+
+					// optional chaining operators currently unsupported by esprima-next
+					if (['?.', ']?'].some((operator) => lineAtError.includes(operator))) return [];
+				} catch {
+					return [];
+				}
+
+				try {
 					line = editorView.state.doc.line(syntaxError.lineNumber);
 
 					return [
@@ -41,13 +58,15 @@ export const linterExtension = (Vue as CodeNodeEditorMixin).extend({
 							message: this.$locale.baseText('codeNodeEditor.linter.bothModes.syntaxError'),
 						},
 					];
-				} catch (error) {
+				} catch {
 					/**
 					 * For invalid (e.g. half-written) n8n syntax, esprima errors with an off-by-one line number for the final line. In future, we should add full linting for n8n syntax before parsing JS.
 					 */
 					return [];
 				}
 			}
+
+			if (ast === null) return [];
 
 			const lintings: Diagnostic[] = [];
 
@@ -124,21 +143,23 @@ export const linterExtension = (Vue as CodeNodeEditorMixin).extend({
 			}
 
 			/**
-			 * Lint for `.item` unavailable in `runOnceForAllItems` mode
+			 * Lint for `.item` unavailable in `$input` in `runOnceForAllItems` mode
 			 *
-			 * $input.all().item -> <removed>
+			 * $input.item -> <removed>
 			 */
 
 			if (this.mode === 'runOnceForAllItems') {
 				type TargetNode = RangeNode & { property: RangeNode };
 
-				const isUnavailablePropertyinAllItems = (node: Node) =>
+				const isUnavailableInputItemAccess = (node: Node) =>
 					node.type === 'MemberExpression' &&
-					node.computed === false &&
+					!node.computed &&
+					node.object.type === 'Identifier' &&
+					node.object.name === '$input' &&
 					node.property.type === 'Identifier' &&
 					node.property.name === 'item';
 
-				walk<TargetNode>(ast, isUnavailablePropertyinAllItems).forEach((node) => {
+				walk<TargetNode>(ast, isUnavailableInputItemAccess).forEach((node) => {
 					const [start, end] = this.getRange(node.property);
 
 					lintings.push({
@@ -159,39 +180,36 @@ export const linterExtension = (Vue as CodeNodeEditorMixin).extend({
 			}
 
 			/**
-			 * Lint for `item` (legacy var from Function Item node) being accessed
-			 * in `runOnceForEachItem` mode, unless user-defined `item`.
+			 * Lint for `items` (legacy var from Function node) unavailable
+			 * in `runOnceForEachItem` mode, unless user-defined `items`.
 			 *
-			 * item. -> $input.item.json.
+			 * items -> $input.item
 			 */
-			if (this.mode === 'runOnceForEachItem' && !/(let|const|var) item =/.test(script)) {
+			if (this.mode === 'runOnceForEachItem' && !/(let|const|var) items =/.test(script)) {
 				type TargetNode = RangeNode & { object: RangeNode & { name: string } };
 
-				const isItemAccess = (node: Node) =>
-					node.type === 'MemberExpression' &&
-					node.computed === false &&
-					node.object.type === 'Identifier' &&
-					node.object.name === 'item';
+				const isUnavailableLegacyItems = (node: Node) =>
+					node.type === 'Identifier' && node.name === 'items';
 
-				walk<TargetNode>(ast, isItemAccess).forEach((node) => {
-					const [start, end] = this.getRange(node.object);
+				walk<TargetNode>(ast, isUnavailableLegacyItems).forEach((node) => {
+					const [start, end] = this.getRange(node);
 
 					lintings.push({
 						from: start,
 						to: end,
 						severity: DEFAULT_LINTER_SEVERITY,
-						message: this.$locale.baseText('codeNodeEditor.linter.eachItem.legacyItemAccess'),
+						message: this.$locale.baseText('codeNodeEditor.linter.eachItem.unavailableItems'),
 						actions: [
 							{
 								name: 'Fix',
 								apply(view, from, to) {
 									// prevent second insertion of unknown origin
-									if (view.state.doc.toString().slice(from, to).includes('$input.item.json')) {
+									if (view.state.doc.toString().slice(from, to).includes('$input.item')) {
 										return;
 									}
 
 									view.dispatch({ changes: { from: start, to: end } });
-									view.dispatch({ changes: { from, insert: '$input.item.json' } });
+									view.dispatch({ changes: { from, insert: '$input.item' } });
 								},
 							},
 						],
@@ -214,7 +232,7 @@ export const linterExtension = (Vue as CodeNodeEditorMixin).extend({
 
 				const isUnavailableMethodinEachItem = (node: Node) =>
 					node.type === 'MemberExpression' &&
-					node.computed === false &&
+					!node.computed &&
 					node.object.type === 'Identifier' &&
 					node.object.name === '$input' &&
 					node.property.type === 'Identifier' &&
@@ -267,34 +285,38 @@ export const linterExtension = (Vue as CodeNodeEditorMixin).extend({
 			}
 
 			/**
-			 * Lint for `.first()` or `.last()` called with argument in `runOnceForAllItems` mode
+			 * Lint for `$input.first()` or `$input.last()` called with argument in `runOnceForAllItems` mode
 			 *
-			 * $input.itemMatching()
+			 * $input.first(arg) -> $input.first()
+			 * $input.last(arg) -> $input.last()
 			 */
 
 			if (this.mode === 'runOnceForAllItems') {
 				type TargetNode = RangeNode & {
-					callee: RangeNode & { property: { name: string } & RangeNode };
+					callee: { property: { name: string } & RangeNode };
 				};
 
-				const isItemMatchingCallWithoutArg = (node: Node) =>
+				const inputFirstOrLastCalledWithArg = (node: Node) =>
 					node.type === 'CallExpression' &&
 					node.callee.type === 'MemberExpression' &&
+					!node.callee.computed &&
+					node.callee.object.type === 'Identifier' &&
+					node.callee.object.name === '$input' &&
 					node.callee.property.type === 'Identifier' &&
 					['first', 'last'].includes(node.callee.property.name) &&
 					node.arguments.length !== 0;
 
-				walk<TargetNode>(ast, isItemMatchingCallWithoutArg).forEach((node) => {
+				walk<TargetNode>(ast, inputFirstOrLastCalledWithArg).forEach((node) => {
 					const [start, end] = this.getRange(node.callee.property);
 
 					const message = [
-						`\`.${node.callee.property.name}()\``,
+						`\`$input.${node.callee.property.name}()\``,
 						this.$locale.baseText('codeNodeEditor.linter.allItems.firstOrLastCalledWithArg'),
 					].join(' ');
 
 					lintings.push({
 						from: start,
-						to: end + '()'.length,
+						to: end,
 						severity: DEFAULT_LINTER_SEVERITY,
 						message,
 					});
@@ -364,14 +386,19 @@ export const linterExtension = (Vue as CodeNodeEditorMixin).extend({
 					left: { declarations: Array<{ id: { type: string; name: string } }> };
 				};
 
-				const isForOfStatement = (node: Node) =>
+				const isForOfStatementOverN8nVar = (node: Node) =>
 					node.type === 'ForOfStatement' &&
 					node.left.type === 'VariableDeclaration' &&
 					node.left.declarations.length === 1 &&
 					node.left.declarations[0].type === 'VariableDeclarator' &&
-					node.left.declarations[0].id.type === 'Identifier';
+					node.left.declarations[0].id.type === 'Identifier' &&
+					node.right.type === 'CallExpression' &&
+					node.right.callee.type === 'MemberExpression' &&
+					!node.right.callee.computed &&
+					node.right.callee.object.type === 'Identifier' &&
+					node.right.callee.object.name.startsWith('$'); // n8n var, e.g $input
 
-				const found = walk<TargetNode>(ast, isForOfStatement);
+				const found = walk<TargetNode>(ast, isForOfStatementOverN8nVar);
 
 				if (found.length === 1) {
 					const itemAlias = found[0].left.declarations[0].id.name;

@@ -1,6 +1,5 @@
-/* tslint:disable:variable-name */
-import N8nNodeIcon from "./NodeIcon.vue";
-import { StoryFn } from '@storybook/vue';
+import N8nNodeIcon from './NodeIcon.vue';
+import type { StoryFn } from '@storybook/vue3';
 
 export default {
 	title: 'Atoms/NodeIcon',
@@ -8,11 +7,12 @@ export default {
 };
 
 const DefaultTemplate: StoryFn = (args, { argTypes }) => ({
+	setup: () => ({ args }),
 	props: Object.keys(argTypes),
 	components: {
 		N8nNodeIcon,
 	},
-	template: '<n8n-node-icon v-bind="$props"></n8n-node-icon>',
+	template: '<n8n-node-icon v-bind="args"></n8n-node-icon>',
 });
 
 export const FileIcon = DefaultTemplate.bind({});

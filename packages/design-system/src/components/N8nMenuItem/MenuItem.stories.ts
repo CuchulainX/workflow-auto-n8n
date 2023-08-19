@@ -1,6 +1,6 @@
-import N8nMenuItem from ".";
-import ElMenu from 'element-ui/lib/menu';
-import { StoryFn } from '@storybook/vue';
+import N8nMenuItem from '.';
+import { ElMenu } from 'element-plus';
+import type { StoryFn } from '@storybook/vue3';
 
 export default {
 	title: 'Atoms/MenuItem',
@@ -8,15 +8,16 @@ export default {
 };
 
 const template: StoryFn = (args, { argTypes }) => ({
+	setup: () => ({ args }),
 	props: Object.keys(argTypes),
 	components: {
-		ElMenu, // eslint-disable-line @typescript-eslint/no-unsafe-assignment
-		N8nMenuItem ,
+		ElMenu,
+		N8nMenuItem,
 	},
 	template: `
 		<div style="width: 200px">
 			<el-menu>
-				<n8n-menu-item v-bind="$props" />
+				<n8n-menu-item v-bind="args" />
 			</el-menu>
 		</div>
 	`,
@@ -28,6 +29,33 @@ defaultMenuItem.args = {
 		id: 'workflows',
 		icon: 'heart',
 		label: 'Workflows',
+	},
+};
+
+export const withSecondaryIcon = template.bind({});
+withSecondaryIcon.args = {
+	item: {
+		id: 'workflows',
+		icon: 'heart',
+		label: 'Workflows',
+		secondaryIcon: { name: 'lock', size: 'small' },
+	},
+};
+
+export const withSecondaryIconTooltip = template.bind({});
+withSecondaryIconTooltip.args = {
+	item: {
+		id: 'workflows',
+		icon: 'heart',
+		label: 'Workflows',
+		secondaryIcon: {
+			name: 'lock',
+			size: 'small',
+			tooltip: {
+				content: 'Locked secret',
+				bindTo: 'secondaryIcon',
+			},
+		},
 	},
 };
 

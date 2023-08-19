@@ -1,5 +1,5 @@
-@use "mixins/mixins";
-@use "./common/var";
+@use 'mixins/mixins';
+@use './common/var';
 
 @include mixins.b(alert) {
 	width: 100%;
@@ -141,7 +141,7 @@
 	}
 }
 
-.el-alert-fade-enter,
+.el-alert-fade-enter-from,
 .el-alert-fade-leave-active {
 	opacity: 0;
 }
